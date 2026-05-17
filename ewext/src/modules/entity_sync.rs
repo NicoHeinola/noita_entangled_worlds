@@ -473,6 +473,7 @@ impl EntitySync {
 
     pub(crate) fn cross_item_thrown(&mut self, entity: Option<EntityID>) -> eyre::Result<()> {
         let entity = entity.ok_or_eyre("Passed entity 0 into cross call")?;
+        self.entity_manager.remove_ent(&entity);
         // It might be already tracked in case of tablet telekinesis, no need to track it again.
         if !self.local_diff_model.is_entity_tracked(entity) {
             self.local_diff_model

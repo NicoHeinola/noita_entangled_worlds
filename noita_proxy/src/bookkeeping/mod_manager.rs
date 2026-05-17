@@ -419,10 +419,14 @@ fn is_mod_ok(mod_path: &Path) -> eyre::Result<bool> {
     let version = fs::read_to_string(version_path)
         .ok()
         .and_then(|v| Version::parse_from_mod(&v));
+    let current_version = Version::current();
 
-    info!("Mod version: {:?}", version);
+    info!(
+        "Mod version: {:?}, proxy version: {current_version}",
+        version
+    );
 
-    if Some(Version::current()) != version {
+    if Some(current_version) != version {
         info!("Mod version differs");
         return Ok(false);
     }

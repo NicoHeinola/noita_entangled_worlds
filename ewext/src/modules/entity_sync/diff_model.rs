@@ -169,7 +169,10 @@ impl LocalDiffModel {
     }
 
     pub(crate) fn is_entity_tracked(&self, entity: EntityID) -> bool {
-        self.tracker.tracked.contains_right(&entity)
+        self.tracker
+            .tracked
+            .get_by_right(&entity)
+            .is_some_and(|lid| !self.tracker.pending_removal.contains(lid))
     }
 }
 pub(crate) struct RemoteDiffModel {
