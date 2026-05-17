@@ -42,6 +42,9 @@ struct EntityEntryPair {
 
 struct LocalDiffModelTracker {
     tracked: BiHashMap<Lid, EntityID>,
+    /// Lids scheduled to be removed at the end of the update pass.
+    /// We keep this separate because some callers need to treat them as already gone
+    /// before the actual drain/removal step runs.
     pending_removal: FxHashSet<Lid>,
     pending_authority: Vec<FullEntityData>,
     pending_localize: Vec<(Lid, PeerId)>,
@@ -168,12 +171,6 @@ impl LocalDiffModel {
         res
     }
 
-    pub(crate) fn is_entity_tracked(&self, entity: EntityID) -> bool {
-        self.tracker
-            .tracked
-            .get_by_right(&entity)
-            .is_some_and(|lid: &Lid| !self.tracker.pending_removal.contains(lid))
-    }
 }
 pub(crate) struct RemoteDiffModel {
     tracked: BiHashMap<Lid, EntityID>,
@@ -1200,6 +1197,8 @@ impl LocalDiffModel {
                     if do_remove {
                         self.upload.remove(&lid);
                     }
+                    // update_entity may queue removal before we reach diff emission.
+                    // Skip delta generation for anything already marked for cleanup.
                     if self.tracker.pending_removal.contains(&lid) {
                         continue;
                     }
@@ -1408,6 +1407,8 @@ impl LocalDiffModel {
                 .push(EntityUpdate::LocalizeEntity(lid, peer));
         }
 
+        // Finalize all removals after the update pass so we do not mutate the
+        // tracked/entity_entries collections while iterating over them above.
         for lid in self.tracker.pending_removal.drain() {
             self.update_buffer.push(EntityUpdate::RemoveEntity(lid));
             // "Untrack" entity

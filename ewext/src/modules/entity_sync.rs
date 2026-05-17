@@ -1,7 +1,9 @@
-//! Distibuted Entity Sync, a.k.a. DES.
-//! The idea is that we completely disregard the normal saving system for entities we sync.
-//! Also, each entity gets an owner.
-//! Each peer broadcasts an "Interest" zone. If it intersects any peer they receive all information about entities this peer owns.
+//! Distributed Entity Sync, abbreviated DES.
+//! DES is the subsystem that keeps selected Noita entities synchronized across peers.
+//! It mostly bypasses Noita's normal save/load behavior for those entities and instead assigns
+//! each entity an owner responsible for sending authoritative state.
+//! Each peer broadcasts an "interest" zone; when another peer intersects it, that peer starts
+//! receiving full state for the owned entities in that area.
 
 use super::{Module, ModuleCtx, NetManager};
 use crate::my_peer_id;
@@ -471,17 +473,31 @@ impl EntitySync {
         Ok(())
     }
 
+    /// Called from the Lua cross-call fired when a tracked item is thrown out of an inventory.
+    ///
+    /// Thrown items need to become regular DES-owned world entities again so they can be
+    /// replicated like any other item on the ground. We also drop any cached entity-manager
+    /// state for the entity first, because the throw often changes components/parenting in the
+    /// same frame.
+    ///
+    /// Tablet telekinesis can report an item we already track, so this only allocates a new lid
+    /// when the entity is not already present in the raw tracked map.
     pub(crate) fn cross_item_thrown(&mut self, entity: Option<EntityID>) -> eyre::Result<()> {
         let entity = entity.ok_or_eyre("Passed entity 0 into cross call")?;
         self.entity_manager.remove_ent(&entity);
-        // It might be already tracked in case of tablet telekinesis, no need to track it again.
-        if !self.local_diff_model.is_entity_tracked(entity) {
+        // This path only wants to avoid duplicate tracking for entities that are still
+        // physically present in the tracker (for example tablet telekinesis).
+        if self.local_diff_model.lid_by_entity(entity).is_none() {
             self.local_diff_model
                 .track_and_upload_entity(entity, &mut self.entity_manager)?;
         }
         Ok(())
     }
 
+    /// Queues a death event reported by Lua so it can be folded into the normal DES update pass.
+    ///
+    /// We do not immediately mutate tracking state here; update_tracked_entities handles that in
+    /// one place so deaths, removals, and outgoing network messages stay ordered.
     pub(crate) fn cross_death_notify(
         &mut self,
         entity_killed: EntityID,
@@ -500,6 +516,12 @@ impl EntitySync {
         Ok(())
     }
 
+    /// Registers a projectile whose gid/lid was decided outside the normal entity discovery path.
+    ///
+    /// For our own projectiles we immediately track the entity under the provided gid and mark the
+    /// resulting lid as `dont_save`, because short-lived projectiles should sync live state but not
+    /// participate in the usual save/upload flow. For remote-owned projectiles we only remember the
+    /// gid so the remote model can attach incoming init data to the already spawned projectile.
     pub(crate) fn sync_projectile(
         &mut self,
         entity: EntityID,
@@ -529,7 +551,12 @@ impl Module for EntitySync {
         Ok(())
     }
 
-    /// Looks for newly spawned entities that might need to be tracked.
+    /// Looks at a freshly observed entity and decides whether DES should take ownership of it.
+    ///
+    /// This is the bridge between raw Noita entity creation and the local diff model. It filters
+    /// out entities we should ignore, suppresses duplicates for entities already tagged by DES,
+    /// and pushes valid candidates into `to_track` so the expensive tracking work can happen later
+    /// in the frame without mutating the discovery scan in place.
     fn on_new_entity(&mut self, ent: isize, kill: bool) -> eyre::Result<()> {
         let entity = EntityID::try_from(ent)?;
         if !kill && !entity.is_alive() {
@@ -609,6 +636,12 @@ impl Module for EntitySync {
         Ok(())
     }
 
+    /// Main DES frame loop.
+    ///
+    /// Each frame we refresh interest state, accept newly granted authority, discover new local
+    /// entities to track, update locally owned entities into init/update buffers, apply remote
+    /// entity state, then finalize delayed removals/kills. The ordering matters: several steps rely
+    /// on deferred queues so we avoid mutating tracked collections while iterating them.
     fn on_world_update(&mut self, ctx: &mut ModuleCtx) -> eyre::Result<()> {
         let start = std::time::Instant::now();
         self.entity_manager.init_pos()?;
