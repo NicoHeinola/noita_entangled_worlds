@@ -17,12 +17,18 @@ for cmd in cargo rustup python3 i686-w64-mingw32-gcc zip; do
     fi
 done
 
-rustup target add i686-pc-windows-gnu >/dev/null
+rustup toolchain install nightly --profile minimal >/dev/null
+rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu >/dev/null
+rustup target add i686-pc-windows-gnu --toolchain nightly >/dev/null
 
-cargo build -p ewext --release --target i686-pc-windows-gnu
+cargo +nightly build \
+    --manifest-path ewext/Cargo.toml \
+    --release \
+    --target i686-pc-windows-gnu \
+    -Zbuild-std="panic_abort,std"
 cp target/i686-pc-windows-gnu/release/ewext.dll quant.ew/ewext.dll
 version="$(python3 scripts/ci_version.py | awk '/^Version:/ { print $2 }')"
-# printf 'return "%s"\n' "$version" > quant.ew/files/version.lua
+printf 'return "%s"\n' "$version" > quant.ew/files/version.lua
 python3 scripts/ci_make_archives.py mod
 
 echo "Built DLL: $repo_root/target/i686-pc-windows-gnu/release/ewext.dll"

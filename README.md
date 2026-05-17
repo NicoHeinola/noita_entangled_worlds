@@ -5,14 +5,15 @@
 Noita Entangled Worlds is an online true coop multiplayer mod.
 
 What is synced as of now:
- - Players, their positions, health, perks and inventories
- - Wand usage
- - Item usage
- - Items in world (One player can throw a wand/potion/spell/item, another can pick it up)
- - Enemies and their attacks
- - Pixels of the grid world
- - Fungal shifts
- - Polymorphing
+
+- Players, their positions, health, perks and inventories
+- Wand usage
+- Item usage
+- Items in world (One player can throw a wand/potion/spell/item, another can pick it up)
+- Enemies and their attacks
+- Pixels of the grid world
+- Fungal shifts
+- Polymorphing
 
 There is a video by nichelessone that showcases a recent version: https://www.youtube.com/watch?v=mMP-93-RTs0
 
@@ -27,6 +28,7 @@ Unpack it, and launch the proxy. Proxy is able to download and install the mod a
 ![image](https://github.com/user-attachments/assets/817cd204-1815-4834-803b-58761b21dc51)
 
 Then, start Noita, and enable the mod.
+
 1. In the "Mods" menu, enable unsafe mods.
 2. Then, enable the "Quant's Entangled Worlds" mod.
 
@@ -38,8 +40,8 @@ Now you're ready to start a server and have fun!
 
 1. Install a GOG copy of Noita using [portingkit](https://www.portingkit.com/) by following the guide given directly on the Noita entry page on portingkit with a few specific options in the "Advance Settings" step:
    1. Set the Engine to "WS12WineKegworks10.0-battle.net"
-   2. Set the Operating System to "Windows 11". 
-2. After confirming that the game launch, open the folder where the game is installed and navigate to where the `noita.exe` is located (usually in "/Users/{User}/Applications/Noita.app/Contents/SharedSupport/prefix/drive_c/GOG Games/Noita") and add a shortcut to it in the sidebar of the Finder. 
+   2. Set the Operating System to "Windows 11".
+2. After confirming that the game launch, open the folder where the game is installed and navigate to where the `noita.exe` is located (usually in "/Users/{User}/Applications/Noita.app/Contents/SharedSupport/prefix/drive_c/GOG Games/Noita") and add a shortcut to it in the sidebar of the Finder.
 3. Go to [releases](https://github.com/IntQuant/noita_entangled_worlds/releases), download the latest `noita_proxy-macos.zip`.
 4. Unpack it and launch the proxy, it will ask to give the path to the `noita.exe` (that we save a shortcut to!). Once the path is given, the proxy will be able to download and install the mod automatically.
 5. Close the proxy, then launch it again via a terminal with the following command: `~/Applications/noita_proxy-macos/noita_proxy --launch-cmd '"/Users/{User}/Applications/Noita.app/Contents/MacOS/wineskinlauncher" --run "C:\GOG Games\Noita\noita.exe"'`
@@ -56,9 +58,44 @@ Note: The proxy must be launched via terminal with the command above every time 
 4. Enable the mod (refer to main installation instructions)
 5. Done!
 
+## Build From Source On Linux
+
+The repository includes helper scripts for building the Windows proxy executable and the in-game `ewext.dll` from Linux.
+
+Build the proxy UI executable with:
+
+```bash
+./scripts/build_noita_proxy.sh
+```
+
+This produces:
+
+- `target/x86_64-pc-windows-gnu/release/noita_proxy.exe`
+- `target/x86_64-pc-windows-gnu/release/steam_api64.dll`
+
+Build the mod side with:
+
+```bash
+./scripts/build_fixed_mod.sh
+```
+
+This produces and updates:
+
+- `target/i686-pc-windows-gnu/release/ewext.dll`
+- `quant.ew/ewext.dll`
+- `quant.ew/files/version.lua`
+- `target/quant.ew.zip`
+
+Notes:
+
+- `build_noita_proxy.sh` builds the Windows UI binary for `x86_64-pc-windows-gnu`.
+- `build_fixed_mod.sh` builds `ewext` for `i686-pc-windows-gnu` using nightly Rust and `-Zbuild-std="panic_abort,std"`, matching the release workflow used by the project.
+- On Debian or Ubuntu systems, the scripts will install missing MinGW packages with `sudo` when needed.
+- After running `build_fixed_mod.sh`, copy the updated `quant.ew` folder into Noita's `mods` directory if you are testing a local build directly instead of using the generated zip.
+
 ## Connect using Steam
 
-In the Proxy window, click on "Create Lobby". Then, "Save lobby ID to clipboard". Send that ID to your friends, who can then *copy* it and press "Connect to lobby in clipboard".
+In the Proxy window, click on "Create Lobby". Then, "Save lobby ID to clipboard". Send that ID to your friends, who can then _copy_ it and press "Connect to lobby in clipboard".
 
 ![image](https://github.com/user-attachments/assets/45cf2be6-090c-4d83-aa6b-516d94748cc5)
 
@@ -66,8 +103,8 @@ After that, just start a new Noita game on everyone's PCs, and you should be in 
 
 ## When to press "New Game" and when to press "Continue"
 
- - "New Game" - you're joining a multiplayer run you haven't joined before.
- - "Continue" - you're reconnecting to a multiplayer run that you've joined before and hasn't ended yet.
+- "New Game" - you're joining a multiplayer run you haven't joined before.
+- "Continue" - you're reconnecting to a multiplayer run that you've joined before and hasn't ended yet.
 
 Using the same save file for multiplayer and singleplayer isn't something that should be done.
 
@@ -76,27 +113,26 @@ Using the same save file for multiplayer and singleplayer isn't something that s
 Some perks are perks and affect the entire world, and thus are shown for every player.
 
 There are 11 global perks:
- - No More Shuffle
- - Unlimited Spells
- - Trick Blood Money
- - Gold is Forever
- - Greed
- - Trick Greed
- - Peace with Gods
- - Extra Item in Holy Mountain
- - More Love
- - More Hatred
- - More Blood
+
+- No More Shuffle
+- Unlimited Spells
+- Trick Blood Money
+- Gold is Forever
+- Greed
+- Trick Greed
+- Peace with Gods
+- Extra Item in Holy Mountain
+- More Love
+- More Hatred
+- More Blood
 
 ## Mods support
 
 [The mods listed here](https://docs.google.com/spreadsheets/d/1nMdqzrLCav_diXbNPB9RgxPcCQzDPgXdEv-klKWJyS0) have been tested by the community, it is publically editable so please add any untested mod with your findings
 
-
 ## CLI connect
 
 You can also connect via cli, just run `noita_proxy --lobby [steam_code/ip and port]`
-
 
 ## CLI host
 
@@ -109,7 +145,8 @@ There is a "Allow using steam networking even if you don't have the game on stea
 ## Thanks
 
 Special thanks to:
- - Contributors.
- - @EvaisaDev for allowing to use code from Noita Arena mod.
- - @dextercd for NoitaPatcher.
- - Creators of other libraries used in this project.
+
+- Contributors.
+- @EvaisaDev for allowing to use code from Noita Arena mod.
+- @dextercd for NoitaPatcher.
+- Creators of other libraries used in this project.
