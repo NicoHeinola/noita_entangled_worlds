@@ -42,7 +42,7 @@ struct EntityEntryPair {
 
 struct LocalDiffModelTracker {
     tracked: BiHashMap<Lid, EntityID>,
-    pending_removal: Vec<Lid>,
+    pending_removal: FxHashSet<Lid>,
     pending_authority: Vec<FullEntityData>,
     pending_localize: Vec<(Lid, PeerId)>,
     /// Stores pairs of entity killed and optionally the responsible entity.
@@ -172,7 +172,7 @@ impl LocalDiffModel {
         self.tracker
             .tracked
             .get_by_right(&entity)
-            .is_some_and(|lid| !self.tracker.pending_removal.contains(lid))
+            .is_some_and(|lid: &Lid| !self.tracker.pending_removal.contains(lid))
     }
 }
 pub(crate) struct RemoteDiffModel {
@@ -237,7 +237,7 @@ impl Default for LocalDiffModel {
             entity_entries: Default::default(),
             tracker: LocalDiffModelTracker {
                 tracked: Default::default(),
-                pending_removal: Vec::with_capacity(16),
+                pending_removal: Default::default(),
                 pending_authority: Vec::new(),
                 pending_localize: Vec::with_capacity(4),
                 pending_death_notify: Vec::with_capacity(4),
@@ -281,7 +281,7 @@ impl LocalDiffModelTracker {
 
         if !entity.is_alive() {
             if self.got_polied.remove(&gid) {
-                self.pending_removal.push(lid);
+                self.pending_removal.insert(lid);
             } else if self.global_entities.remove(&entity)
                 && self
                     .pending_death_notify
@@ -289,7 +289,7 @@ impl LocalDiffModelTracker {
                     .all(|(e, _, _, _, _)| *e != entity)
             {
                 self._release_authority_update_data(ctx, gid, lid, info, do_upload)?;
-                self.pending_removal.push(lid);
+                self.pending_removal.insert(lid);
                 ctx.net.send(&NoitaOutbound::DesToProxy(
                     shared::des::DesToProxy::ReleaseAuthority(gid),
                 ))?;
@@ -683,7 +683,7 @@ impl LocalDiffModelTracker {
         lid: Lid,
         ent: Option<NonZero<isize>>,
     ) -> Result<(), eyre::Error> {
-        self.pending_removal.push(lid);
+        self.pending_removal.insert(lid);
         ctx.net.send(&NoitaOutbound::DesToProxy(
             shared::des::DesToProxy::DeleteEntity(gid, ent),
         ))?;
@@ -788,7 +788,7 @@ impl LocalDiffModelTracker {
         ctx.net.send(&NoitaOutbound::DesToProxy(
             shared::des::DesToProxy::ReleaseAuthority(gid),
         ))?;
-        self.pending_removal.push(lid);
+        self.pending_removal.insert(lid);
         entity_manager.set_current_entity(entity)?;
         safe_entitykill(entity_manager);
         Ok(())
@@ -809,7 +809,7 @@ impl LocalDiffModelTracker {
         ctx.net.send(&NoitaOutbound::DesToProxy(
             shared::des::DesToProxy::TransferAuthorityTo(gid, peer),
         ))?;
-        self.pending_removal.push(lid);
+        self.pending_removal.insert(lid);
         entity_manager.set_current_entity(entity)?;
         safe_entitykill(entity_manager);
         Ok(())
@@ -1408,7 +1408,7 @@ impl LocalDiffModel {
                 .push(EntityUpdate::LocalizeEntity(lid, peer));
         }
 
-        for lid in self.tracker.pending_removal.drain(..) {
+        for lid in self.tracker.pending_removal.drain() {
             self.update_buffer.push(EntityUpdate::RemoveEntity(lid));
             // "Untrack" entity
             let ent = self.tracker.tracked.remove_by_left(&lid);
